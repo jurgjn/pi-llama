@@ -170,7 +170,9 @@ export default async function (pi: ExtensionAPI) {
 	pi.registerCommand("llama-version", {
 		description: "Get build info of llama.cpp server",
 		handler: async (_args, ctx) => {
-			const response = await fetch(`${baseUrl.replace(/\/v1$/, "")}/props`);
+			const response = await fetch(`${baseUrl.replace(/\/v1$/, "")}/props`, {
+				headers: { Authorization: `Bearer ${apiKey}` },
+			});
 			if (!response.ok) {
 				ctx.ui.notify(`[llama-cpp] /props returned ${response.status}`, "error");
 				return;
@@ -195,12 +197,18 @@ export default async function (pi: ExtensionAPI) {
 		},
 	});
 
-	const baseUrl = (process.env.LLAMA_BASE_URL ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
+	// LLAMA_BASE_URL may be given as the bare server root (e.g. http://host:port)
+	// or already include the OpenAI-compatible /v1 suffix; normalize to always
+	// have /v1 so the rest of this file can rely on a consistent shape.
+	const rawBaseUrl = (process.env.LLAMA_BASE_URL ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
+	const baseUrl = rawBaseUrl.endsWith("/v1") ? rawBaseUrl : `${rawBaseUrl}/v1`;
 	const apiKey = process.env.LLAMA_API_KEY ?? "no-key";
 
 	async function refreshProvider(): Promise<void> {
 		try {
-			const response = await fetch(`${baseUrl}/models`);
+			const response = await fetch(`${baseUrl}/models`, {
+				headers: { Authorization: `Bearer ${apiKey}` },
+			});
 			if (!response.ok) {
 				console.warn(`[llama-cpp] ${baseUrl}/models returned ${response.status}`);
 				return;
@@ -317,7 +325,10 @@ export default async function (pi: ExtensionAPI) {
 		const signal = sseAbortController.signal;
 
 		try {
-			const response = await fetch(`${baseUrl.replace(/\/v1$/, "")}/models/sse`, { signal });
+			const response = await fetch(`${baseUrl.replace(/\/v1$/, "")}/models/sse`, {
+				signal,
+				headers: { Authorization: `Bearer ${apiKey}` },
+			});
 
 			if (!response.ok) {
 				if (response.status !== 404) {
@@ -510,7 +521,10 @@ export default async function (pi: ExtensionAPI) {
 				void connectToLoadingProgress(modelId, ctx, loader);
 			}
 
-			const response = await fetch(propsUrl, { signal: propsAbortController.signal });
+			const response = await fetch(propsUrl, {
+				signal: propsAbortController.signal,
+				headers: { Authorization: `Bearer ${apiKey}` },
+			});
 			if (!response.ok) {
 				// 500 during autoload is expected when the server cancels a load to start
 				// another model. Suppress the notification for that case.
